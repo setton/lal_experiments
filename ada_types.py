@@ -1,4 +1,4 @@
-from builtins import property as _property
+from builtins import property as _property, tuple as _tuple
 from operator import itemgetter as _itemgetter
 
 

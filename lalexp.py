@@ -49,10 +49,18 @@ class LALElim(object):
         self.success_count = 0
         self.fail_count = 0
 
-        for source in project.sources(recursive=True):
+        all_sources = project.sources(recursive=True)
+        counter = 0
+
+        for source in all_sources:
             if source.language().lower() != "ada":
                 continue
 
+            counter += 1
+            print "completed {} out of {} ({}%)...".format(
+                counter,
+                len(all_sources),
+                int(counter * 100 / len(all_sources)))
             filename = source.name()
             self.inspect_file(filename)
 
@@ -62,23 +70,39 @@ class LALElim(object):
         # OK now print something
 
         for k in self.all_objects:
-            if not self.all_objects[k].writes:
-                print "{}:{}:{}: is never written".format(
-                    os.path.basename(k.unit.filename),
-                    k.line,
-                    k.sloc_range.start.column,
-                    self.all_objects[k].text)
+            if not self.all_objects[k].reads:
+                print "{}:{}:{}: is never read".format(
+                    os.path.basename(k[0]),
+                    k[1].line,
+                    k[1].column)
+
+        for k in self.all_callables:
+            if not self.all_callables[k].calls:
+                print "{}:{}:{}: is never called".format(
+                    os.path.basename(k[0]),
+                    k[1].line,
+                    k[1].column)
 
         # TODO: complete with other things
 
     def process_node(self, node):
         """Process one node"""
+
+        if (len(node.parents) > 7 and
+            node.parents[5].is_a(lal.Params) and
+                node.parents[7].is_a(lal.SubpDecl)):
+            # Ignore parameter definition in subprogram declarations
+            # because they are not findable from the subprogram body (RA18-041)
+            return
+
         ref = None
         try:
             status, ref = identifier_to_first_part(node)
+            self.success_count += 1
         except Exception:
+            self.fail_count += 1
+            status = NOT_APPLICABLE
             loc_error(node, "exception when computing xref")
-            raise
 
         if status == NOT_APPLICABLE:
             # Nothing to do
@@ -99,16 +123,35 @@ class LALElim(object):
                     ref.sloc_range.start.line,
                     ref.sloc_range.start.column))
 
-            if ref.parent.is_a(lal.SubpSpec):
+            loc = unique_loc(ref)
+
+            if ref.sloc_range.start.line == node.sloc_range.start.line:
+                # Figure out if this is a definition
+                if ref.is_a(lal.SubpDecl):
+                    if loc not in self.all_callables:
+                        self.all_callables[loc] = AdaCallable([])
+                else:
+                    if loc not in self.all_objects:
+                        self.all_objects[loc] = AdaObject([], [])
+
+            elif ref.is_a(lal.SubpDecl):
+                if False:
+                    loc_error(node, "is a subprogram call")
                 # We have a subprogram call
-                loc = unique_loc(ref)
+
                 if loc in self.all_callables:
                     self.all_callables[loc].calls.append(loc)
                 else:
-                    self.all_callables[loc].calls = node
+                    self.all_callables[loc] = AdaCallable([node])
 
             else:
-                print "TODO"  # TODO
+                if False:
+                    loc_error(node, "is a object ref")
+                # We have an object reference
+                if loc in self.all_objects:
+                    self.all_objects[loc].reads.append(ref)
+                else:
+                    self.all_objects[loc] = AdaObject([node], [])
 
         else:
             raise Exception("Add something to this case statement!")
