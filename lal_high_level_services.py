@@ -31,26 +31,10 @@ def identifier_to_first_part(node):
                    parent.is_a(lal.PragmaArgumentAssoc)):
         return (NOT_APPLICABLE, None)
 
-    def prev_part(node):
-        if node.is_a(lal.BodyNode):
-            return node.p_previous_part
-        elif node.is_a(lal.BaseTypeDecl):
-            return node.p_previous_part(True)
-        return None
-
-    def first_part(node):
-        if not node:
-            return None
-        while True:
-            p = prev_part(node)
-            if not p:
-                return node
-            node = p
-
     if node.p_is_defining:
-        ref = first_part(node.p_enclosing_defining_name.p_basic_decl)
+        ref = node.p_enclosing_defining_name.p_canonical_part
     else:
-        ref = first_part(node.p_referenced_decl)
+        ref = node.p_referenced_decl().p_canonical_part
 
     if not ref:
         return (NOT_FOUND, None)
