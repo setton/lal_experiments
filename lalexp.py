@@ -2,6 +2,7 @@ import os
 import libadalang as lal
 import GPS
 from ada_types import AdaObject, AdaCallable
+from repository import Repository
 from lal_high_level_services import identifier_to_first_part, \
     NOT_APPLICABLE, IN_SOURCE, IN_STANDARD, NOT_FOUND
 
@@ -17,10 +18,6 @@ def loc_error(n, message):
         n.sloc_range.start.line,
         n.sloc_range.start.column,
         message)
-
-
-def unique_loc(node):
-    return (node.unit.filename, node.sloc_range.start)
 
 
 class LALElim(object):
@@ -40,11 +37,13 @@ class LALElim(object):
         # TODO: process only the closure of mains?
         # mains = project.get_attribute_as_list('main')
 
+        self.repo = Repository()
+
         self.all_objects = {}
-        # All objects. Key: loc returned by unique_loc, value: AdaObject
+        # All objects. Key: node, value: AdaObject
 
         self.all_callables = {}
-        # All callables. Key: loc returned by unique_loc, value: AdaCallable
+        # All callables. Key: node, value: AdaCallable
 
         self.success_count = 0
         self.fail_count = 0
@@ -71,19 +70,21 @@ class LALElim(object):
 
         for k in self.all_objects:
             if not self.all_objects[k].reads:
-                print "{}:{}:{}: is never read".format(
-                    os.path.basename(k[0]),
-                    k[1].line,
-                    k[1].column)
+                print "{}:{}:{}: is never referenced".format(
+                    os.path.basename(k.unit.filename),
+                    k.sloc_range.start.line,
+                    k.sloc_range.start.column)
 
         for k in self.all_callables:
             if not self.all_callables[k].calls:
                 print "{}:{}:{}: is never called".format(
                     os.path.basename(k[0]),
-                    k[1].line,
-                    k[1].column)
+                    k.loc.line,
+                    k.loc.column)
 
         # TODO: complete with other things
+        if False:
+            print str(self.all_objects)
 
     def process_node(self, node):
         """Process one node"""
@@ -123,10 +124,11 @@ class LALElim(object):
                     ref.sloc_range.start.line,
                     ref.sloc_range.start.column))
 
-            loc = unique_loc(ref)
+            loc = self.repo.get_unique_object(ref)
 
             if ref.sloc_range.start.line == node.sloc_range.start.line:
                 # Figure out if this is a definition
+                # TODO: fix: ref is always DefiningName now
                 if ref.is_a(lal.SubpDecl):
                     if loc not in self.all_callables:
                         self.all_callables[loc] = AdaCallable([])
@@ -146,7 +148,7 @@ class LALElim(object):
 
             else:
                 if False:
-                    loc_error(node, "is a object ref")
+                    loc_error(node, "is a object ref at {}".format(ref))
                 # We have an object reference
                 if loc in self.all_objects:
                     self.all_objects[loc].reads.append(ref)

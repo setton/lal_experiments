@@ -19,7 +19,7 @@ def identifier_to_first_part(node):
              IN_STANDARD if this resolved to an entity in the standard
              NOT_FOUND if no reference was found
 
-          reference is the first_part found, or None.
+          reference is the Defining_Name in the canonical_part, or None.
     """
     if not node.is_a(lal.Identifier):
         raise Exception(
@@ -34,7 +34,7 @@ def identifier_to_first_part(node):
     if node.p_is_defining:
         ref = node.p_enclosing_defining_name.p_canonical_part
     else:
-        ref = node.p_referenced_decl().p_canonical_part
+        ref = node.p_referenced_decl().p_canonical_part.p_defining_name
 
     if not ref:
         return (NOT_FOUND, None)
